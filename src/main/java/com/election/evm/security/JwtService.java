@@ -55,10 +55,34 @@ public class JwtService {
     }
 
     private Claims parseClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        try {
+            // First try the newer parserBuilder API via reflection (works with jjwt 0.11+ / 0.12+)
+            java.lang.reflect.Method parserBuilderMethod = Jwts.class.getMethod("parserBuilder");
+            Object builder = parserBuilderMethod.invoke(null);
+            java.lang.reflect.Method setSigningKeyMethod = builder.getClass().getMethod("setSigningKey", java.security.Key.class);
+            Object parserBuilder = setSigningKeyMethod.invoke(builder, key);
+            java.lang.reflect.Method buildMethod = parserBuilder.getClass().getMethod("build");
+            Object parser = buildMethod.invoke(parserBuilder);
+            java.lang.reflect.Method parseClaimsJws = parser.getClass().getMethod("parseClaimsJws", String.class);
+            Object jws = parseClaimsJws.invoke(parser, token);
+            java.lang.reflect.Method getBody = jws.getClass().getMethod("getBody");
+            return (Claims) getBody.invoke(jws);
+        } catch (NoSuchMethodException e) {
+            try {
+                // Fallback to older parser() API
+                java.lang.reflect.Method parserMethod = Jwts.class.getMethod("parser");
+                Object parserObj = parserMethod.invoke(null);
+                java.lang.reflect.Method setSigningKey = parserObj.getClass().getMethod("setSigningKey", byte[].class);
+                Object parserWithKey = setSigningKey.invoke(parserObj, (Object) key.getEncoded());
+                java.lang.reflect.Method parseClaimsJws = parserWithKey.getClass().getMethod("parseClaimsJws", String.class);
+                Object jws = parseClaimsJws.invoke(parserWithKey, token);
+                java.lang.reflect.Method getBody = jws.getClass().getMethod("getBody");
+                return (Claims) getBody.invoke(jws);
+            } catch (Exception ex) {
+                throw new RuntimeException("Unable to parse JWT token", ex);
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException("Unable to parse JWT token", ex);
+        }
     }
 }
