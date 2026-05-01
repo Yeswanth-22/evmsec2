@@ -1,0 +1,1 @@
+FROM eclipse-temurin:17-jdkWORKDIR /appCOPY . .RUN chmod +x mvnwRUN ./mvnw clean package -DskipTestsEXPOSE 8080CMD ["java", "-jar", "target/*.jar"]
